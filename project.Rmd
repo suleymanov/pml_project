@@ -1,0 +1,80 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Rail Suleymanov"
+date: "Sunday, June 21, 2015"
+output:
+  html_document:
+    keep_md: yes
+---
+
+The goal of this project is to take measurement data from motion-tracking devices and use it to predict the manner in which their owners did the exercise ("classe" variable in data set). In this document I will describe how I built the model, cross-validation methods and report the out-of-sample error. Developed prediction model will be used to predict 20 different test cases.
+
+Let's start with loading data. Here 'data' is one we know the "classe" variable for and it will be used for creating training/validation sets. 'testing' is 20 test cases data set (one we don't know to which class it belongs).
+
+```{r}
+library(caret)
+data <- read.csv("../pml-training.csv")
+testing <- read.csv("../pml-testing.csv")
+dim(data)
+```
+
+Examining data/testing sets shows that there are a lot of missing data, and as far as we have a lot of data samples in training set (15699) and a lot of features (159), it would be worth removing some. This can be also useful since some features in testing set don't have any necessary information and consist only of NA's. We can't omit all NA's since it will result in quite a poor data set:
+
+```{r}
+poor_data <- na.omit(data)
+dim(poor_data)
+```
+
+Let's find all feature indexes that are NA in testing set and remove these features from both data/testing:
+
+```{r}
+na_inds <- c()
+for (i in 1:dim(testing)[2]) {
+    vec <- testing[, i]
+    if (length(vec) == length(vec[is.na(vec)]))
+        na_inds <- c(na_inds, i)
+}
+print(length(na_inds))
+data <- data[, -na_inds]
+testing <- testing[, -na_inds]
+```
+
+Now the data set is ready for partitioning. I'll divide it to 2 classes - training (80% of data) and validating (20%):
+
+```{r}
+i_train <- createDataPartition(y=data$classe, p=0.8, list=FALSE)
+training <- data[i_train, ]
+validating <- data[-i_train, ]
+```
+
+I'll apply several Linear Discriminant Analysis to problem.
+(Preprocess data first)
+
+```{r}
+preprocess <- function(data) {
+    for (i in 1:dim(data)[2]) {
+        if (is.numeric(data[, i])) {
+            data[, i] <- (data[, i] - mean(data[, i])) / sd(data[, i])
+        }
+    }
+    data
+}
+training <- preprocess(training)
+validating <- preprocess(validating)
+testing <- preprocess(testing)
+```
+
+### Linear Discriminant Analysis
+
+```{r, warning=F, message=F}
+fit_lda <- train(classe ~ ., data=training, method="lda")
+pred_lda <- predict(fit_lda, validating)
+confusionMatrix(pred_lda, validating$classe)
+```
+
+Now I apply trained algorithm to testing ("unseen") data:
+
+```{r}
+answers <- predict(fit_lda, testing)
+print(answers)
+```
